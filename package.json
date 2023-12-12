@@ -1,0 +1,18 @@
+{
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "sqlite": "^5.0.1",
+    "sqlite3": "^5.1.6",
+    "ws": "^8.11.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "type": "module",
+  "name": "paymebtc",
+  "version": "0.0.1",
+  "description": "websocket server enabling serving of live lightning invoices to services from end users nodes",
+  "main": "server.js",
+  "author": "MrRGnome",
+  "license": "CC0-1.0"
+}
