@@ -14,6 +14,7 @@ debug=BOOLEAN //True or False to enable or disable debug logging
 authBytes=INTEGER //Number of bytes used in authentication challenge string and HMAC authentication
 ipcWhitelist=ARRAY[IPAddress, IPAddress] //Array of IPC addresses to allow connections from
 validAuthDuration=INTEGER // miliseconds of difference allowed in timestamps to limit possible DDoS reuse of valid connection signatures, default 24 hours/1000*60*60*24
+extrenalAddress=IP/URL // access point for end users to connect to the server
 ```
 Run npm start or node server.js
 
