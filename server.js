@@ -232,6 +232,8 @@ wss.on('connection', async function connection(ws, req) {
     ws.on('close', function message(data) {
         //delete auths[]
         auths[ws.id] = undefined;
+        if (process.env.debug)
+            console.log("Disconnection by " + ws._socket.remoteAddress + "/" + ws.id + ", Message: " + data);
     });
     
 });
