@@ -178,7 +178,15 @@ wss.on('connection', async function connection(ws, req) {
 
     //Check for auth. https://github.com/websockets/ws/blob/master/doc/ws.md#event-connection https://github.com/websockets/ws/issues/884
     let searchParams = new URL(req.url, process.env.externalAddress ? process.env.externalAddress : "ws://127.0.0.1:8088").searchParams;
-    let cs = JSON.parse(searchParams.get('cs'));
+    let cs;
+    try{
+        cs = JSON.parse(atob(searchParams.get('cs')));
+    }
+    catch(ex) {
+        if (process.env.debug)
+            console.log("Invalid JSON in connection auth");
+        return ws.close();
+    }
     if(cs.message != undefined && cs.signature != undefined && cs.id != undefined && await isAuthed(cs)) {
         if (process.env.debug)
             console.log("Authenticated connection " + ws._socket.remoteAddress + " as user " + cs.id);
