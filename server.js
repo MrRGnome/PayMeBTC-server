@@ -213,16 +213,12 @@ wss.on('connection', async function connection(ws, req) {
     //Consume pending requests
     let user = await readUser(cs.id);
     let pendingRequests = JSON.parse(user.pendingRequests);
-     pendingRequests.pending.forEach(pending => {
+    pendingRequests.pending.forEach(pending => {
         console.log(pending);
         parseIPC.bind({ws:{send: IPCBroadcast }})(pending);
     }) 
     clearPending(user.id);
-
-    ws.on('open', function message(data) {
-        if (process.env.debug)
-            console.log("Connection by " + ws._socket.remoteAddress + "/" + ws.id + " fully opened");
-    });
+    
 
     ws.on('message', function message(data) {
         if (process.env.debug)
