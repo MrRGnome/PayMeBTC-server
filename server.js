@@ -219,6 +219,11 @@ wss.on('connection', async function connection(ws, req) {
     }) 
     clearPending(user.id);
 
+    ws.on('open', function message(data) {
+        if (process.env.debug)
+            console.log("Connection by " + ws._socket.remoteAddress + "/" + ws.id + " fully opened");
+    });
+
     ws.on('message', function message(data) {
         if (process.env.debug)
             console.log("New public message from  Address/ID: " + ws._socket.remoteAddress + "/" + ws.id + ", Message: " + data);
