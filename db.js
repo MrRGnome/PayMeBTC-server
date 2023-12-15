@@ -7,24 +7,42 @@ let sqlite3 = pkg;
 let db = await open({filename: "./paymeBTC.db", mode: sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, driver: sqlite3.Database});
     
 //check if tables exist
-let qry = `
+let setupQry = `
     CREATE TABLE IF NOT EXISTS PayMeUsers (
         id text NOT NULL PRIMARY KEY UNIQUE,
         challengeString text NOT NULL,
-        pendingRequests text
+        pendingRequests text,
+        staticBTC text
     )
 `;
-await db.run(qry);
-        
+await db.run(setupQry);
 
-async function createUser (id, challengeString) {
-    let qry = `INSERT INTO PayMeUsers (id, challengeString, pendingRequests) VALUES (?, ?, '{"pending":[]}')`;
-    db.run(qry,[id, challengeString]);
+let staticBTCUpgradeCheckQry = `
+    SELECT COUNT(*) AS noUpgradeNeeded FROM pragma_table_info('PayMeUsers') WHERE name='staticBTC'
+`;
+
+let upgradeNeeded = await db.run(staticBTCUpgradeCheckQry);
+
+if(upgradeNeeded.noUpgradeNeeded == 0) {
+    let staticBTCUpgradeQry = `
+        ALTER TABLE PayMeUsers (
+            ADD staticBTC text
+        )
+    `;
+
+    await db.run(staticBTCUpgradeQry);
 }
 
-async function updateUser (id, challengeString) {
-    let qry = `UPDATE PayMeUsers SET challengeString = ? WHERE id = ?`;
-    db.run(qry,[challengeString, id]);
+        
+
+async function createUser (id, challengeString, staticBTC) {
+    let qry = `INSERT INTO PayMeUsers (id, challengeString, pendingRequests, staticBTC) VALUES (?, ?, '{"pending":[]}', ?)`;
+    db.run(qry,[id, challengeString, staticBTC]);
+}
+
+async function updateUser (id, challengeString, staticBTC) {
+    let qry = `UPDATE PayMeUsers SET challengeString = ?, staticBTC = ? WHERE id = ?`;
+    db.run(qry,[challengeString, staticBTC, id]);
 }
 
 async function readUser (id){

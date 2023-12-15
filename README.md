@@ -30,12 +30,73 @@ User Offline:
 User Unregistered:
 ```{"action":"user_unregistered","id":"791741508436492299","requestId":"281970998784557057","amount":"10","memo":"Bitcoin discord user mrrgnome","msg":"The user 791741508436492299 is not registered with PayMeBTC. Please ask them to register."}```
 
-There are also only a handful of messages to send.
+There are also only a handful of messages to send, though each message must be signed with the auth_code provided by the server and wrapped via the hmacMsg function in both client and server.
+
+inital connection:
+```
+	msg = {timestamp: Date.now(), id:service.id};
+	msg = hmacMsg(service.auth_code, msg);
+	ws://websocketaddress/?cs=btoa(msg);
+```
+
+Where hmacMsg (and hmacUnMsg) are functions:
+```
+	const { subtle } =  require('node:crypto');
+
+	async function hmacUnMsg(challengeString, msg) {
+		const enc = new TextEncoder();
+		let jsonArr = JSON.parse(msg.signature);
+		let sigArr = new Uint8Array(64);
+		for(let i in jsonArr) {
+			sigArr[i] = jsonArr[i];
+		}
+		let key = await subtle.importKey(
+			"raw",
+			enc.encode(challengeString),
+			{name: "HMAC", hash: "SHA-512"},
+			false,
+			["sign", "verify"]
+		);
+		let verified = await subtle.verify(
+			"HMAC",
+			key,
+			sigArr.buffer,
+			enc.encode(msg.message),
+		);
+
+		return verified;
+	}
+
+	async function hmacMsg(challengeString, msg) {
+		const enc = new TextEncoder();
+		const dec = new TextDecoder();
+		let timestamp = Date.now();
+		msg.timestamp = timestamp;
+		let msgStr = encodeURIComponent(JSON.stringify(msg));
+		let key = await subtle.importKey(
+			"raw",
+			enc.encode(challengeString),
+			{name: "HMAC", hash: "SHA-512"},
+			false,
+			["sign", "verify"]
+		);
+		let sig = await subtle.sign(
+			"HMAC",
+			key,
+			enc.encode(msgStr)
+		);
+		return { signature: JSON.stringify(new Uint8Array(sig)), message: msgStr, id: msg.id, timestamp: timestamp};
+	}
+```
+
+The same hmac principles can be followed for all messages sent over the websocket
 
 Request an invoice:
-```'{"action":"request_invoice", "id":"user_identifier", "requestId":"recipient_id", "amount":"amount in sats", "memo":"This is the memo"}```
+```
+	msg = {"action":"request_invoice", "id":"user_identifier", "requestId":"recipient_id", "amount":"amount in sats", "memo":"This is the memo"};
+	msg = hmacMsg(service.auth_code, msg);
+	websocket.send(msg);
 
-Register your PayMeBTC instance with a social media server:
-```{"action":"register", "id":"user_identifier"}```
+```
 
 
