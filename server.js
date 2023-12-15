@@ -243,6 +243,11 @@ wss.on('connection', async function connection(ws, req) {
         if (process.env.debug)
             console.log("Disconnection by " + ws._socket.remoteAddress + "/" + ws.id + ", Message: " + data);
     });
+
+    ws.on('error', function message(err) {
+        if (process.env.debug)
+            console.log("Error from " + ws._socket.remoteAddress + "/" + ws.id + ", Error: " + err);
+    });
     
 });
 
