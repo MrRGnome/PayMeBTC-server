@@ -58,7 +58,7 @@ async function register(msg, ws) {
         createUser(msg.id, msg.auth_code);
     }
     let host = process.env.externalAddress ? process.env.externalAddress : "ws://127.0.0.1:8088";
-    ws.send('{"action": "registered", "id": "'+ msg.id +'", "auth_code":"' + msg.auth_code + '", "connection_string":"' + host + '>' + msg.auth_code + '>' + msg.id + '", "msg": "You have been successfully registered. To use PayMeBTC tipping please run the PayMeBTC client found at https://github.com/MrRGnome/PayMeBTC-client. You do not need to install anything, and you can easily audit everything. The PayMeBTC client is a self hosted webpage which connects your lnd node to your social media account indirectly through a websocket and software you control. To begin you can visit the previious link or you can download the attached file. When you view the paymebtc.html webpage please add your node information and follow the instructions. **Your connection string is: ' + host + '>' + msg.auth_code + '>' + msg.id + '**"}');
+    ws.send('{"action": "registered", "id": "'+ msg.id +'", "auth_code":"' + msg.auth_code + '", "connection_string":"' + host + '>>' + msg.auth_code + '>>' + msg.id + '", "msg": "You have been successfully registered. To use PayMeBTC tipping please run the PayMeBTC client found at https://github.com/MrRGnome/PayMeBTC-client. You do not need to install anything, and you can easily audit everything. The PayMeBTC client is a self hosted webpage which connects your lnd node to your social media account indirectly through a websocket and software you control. To begin you can visit the previous link or you can download the attached file. When you view the paymebtc.html webpage please add your node information and follow the instructions. **Your connection string is: ' + host + '>' + msg.auth_code + '>' + msg.id + '**"}');
 }
 
 function newInvoice(msg, ws) {
@@ -173,36 +173,52 @@ async function processMessage(msg, ws){
 }
 
 wss.on('connection', async function connection(ws, req) {
+    if (process.env.debug)
+            console.log("New connection from: " + ws._socket.remoteAddress);
+
     //Check for auth. https://github.com/websockets/ws/blob/master/doc/ws.md#event-connection https://github.com/websockets/ws/issues/884
     let searchParams = new URL(req.url, process.env.externalAddress ? process.env.externalAddress : "ws://127.0.0.1:8088").searchParams;
-    let cs = JSON.parse(searchParams.get('cs'));
+    let cs;
+    try{
+        cs = JSON.parse(atob(searchParams.get('cs')));
+    }
+    catch(ex) {
+        if (process.env.debug)
+            console.log("Invalid JSON in connection auth");
+        return ws.close();
+    }
     if(cs.message != undefined && cs.signature != undefined && cs.id != undefined && await isAuthed(cs)) {
+        if (process.env.debug)
+            console.log("Authenticated connection " + ws._socket.remoteAddress + " as user " + cs.id);
         ws.authed = true;
         ws.id = randomUUID();
         if (auths[cs.id] != undefined) {
             auths[cs.id].close();
+            if (process.env.debug)
+                console.log("Closed duplicate socket from: " + ws._socket.remoteAddress + " as user " + cs.id);
         }
         auths[cs.id] = ws;
     }
     else {
         //not authenticated
         if (process.env.debug) {
-            console.log("Failed authentication attempt from " + ws._socket.remoteAddress);
+            console.log("Failed authentication attempt from " + ws._socket.remoteAddress + " as user " + cs.id);
         }
         return ws.close();
     }
 
     if (process.env.debug)
-        console.log("New public connection from " + ws._socket.remoteAddress + ", new ID: " + ws.id);
+        console.log("New public connection from " + ws._socket.remoteAddress + " as user " + cs.id + ", new ID: " + ws.id);
 
     //Consume pending requests
     let user = await readUser(cs.id);
     let pendingRequests = JSON.parse(user.pendingRequests);
-     pendingRequests.pending.forEach(pending => {
+    pendingRequests.pending.forEach(pending => {
         console.log(pending);
         parseIPC.bind({ws:{send: IPCBroadcast }})(pending);
     }) 
     clearPending(user.id);
+    
 
     ws.on('message', function message(data) {
         if (process.env.debug)
@@ -225,6 +241,13 @@ wss.on('connection', async function connection(ws, req) {
     ws.on('close', function message(data) {
         //delete auths[]
         auths[ws.id] = undefined;
+        if (process.env.debug)
+            console.log("Disconnection by " + ws._socket.remoteAddress + "/" + ws.id + ", Message: " + data);
+    });
+
+    ws.on('error', function message(err) {
+        if (process.env.debug)
+            console.log("Error from " + ws._socket.remoteAddress + "/" + ws.id + ", Error: " + err);
     });
     
 });

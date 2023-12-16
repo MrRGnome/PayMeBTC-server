@@ -10,9 +10,9 @@
   },
   "type": "module",
   "name": "paymebtc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "websocket server enabling serving of live lightning invoices to services from end users nodes",
   "main": "server.js",
   "author": "MrRGnome",
-  "license": "CC0-1.0"
+  "license": "GPLv3"
 }
