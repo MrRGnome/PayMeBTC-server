@@ -48,22 +48,26 @@ function IPCBroadcast(msg) {
 async function register(msg, ws) {
     //does user exist?
     let res = await readUser(msg.id);
+    msg.auth_code = randomBytes(process.env.authbytes ? process.env.authbytes : 4).toString('hex').toUpperCase();
+    console.log(msg);
+    msg.staticBTC = msg.staticBTC ? msg.staticBTC : null
     if (res && Object.keys(res).length > 0) {
         //got user
-        msg.auth_code = randomBytes(process.env.authbytes ? process.env.authbytes : 4).toString('hex').toUpperCase();
-        updateUser(msg.id, msg.auth_code);
+        updateUser(msg.id, msg.auth_code, msg.staticBTC);
     }
     else {
-        msg.auth_code = randomBytes(process.env.authbytes ? process.env.authbytes : 4).toString('hex').toUpperCase();
-        createUser(msg.id, msg.auth_code);
+        createUser(msg.id, msg.auth_code, msg.staticBTC);
     }
     let host = process.env.externalAddress ? process.env.externalAddress : "ws://127.0.0.1:8088";
-    ws.send('{"action": "registered", "id": "'+ msg.id +'", "auth_code":"' + msg.auth_code + '", "connection_string":"' + host + '>>' + msg.auth_code + '>>' + msg.id + '", "msg": "You have been successfully registered. To use PayMeBTC tipping please run the PayMeBTC client found at https://github.com/MrRGnome/PayMeBTC-client. You do not need to install anything, and you can easily audit everything. The PayMeBTC client is a self hosted webpage which connects your lnd node to your social media account indirectly through a websocket and software you control. To begin you can visit the previous link or you can download the attached file. When you view the paymebtc.html webpage please add your node information and follow the instructions. **Your connection string is: ' + host + '>' + msg.auth_code + '>' + msg.id + '**"}');
+    let response = 'You have been successfully registered. To use PayMeBTC tipping please run the PayMeBTC client found at https://github.com/MrRGnome/PayMeBTC-client. You do not need to install anything, and you can easily audit everything. The PayMeBTC client is a self hosted webpage which connects your lnd node to your social media account indirectly through a websocket and software you control. To begin you can visit the previous link or you can download the attached file. When you view the paymebtc.html webpage please add your node information and follow the instructions. **Your connection string is: ' + host + '>' + msg.auth_code + '>' + msg.id + '**';
+    if(msg.staticBTC != null)
+        response = 'You have been successfully registered. By providing a static BTC address for onchain transactions in your registration even if you are offline we will still serve your static BTC address ' + msg.staticBTC + ' to those attempting payment. To enable lightning tipping and dynamic Bitcoin addresses please run the PayMeBTC client found at https://github.com/MrRGnome/PayMeBTC-client. You do not need to install anything, and you can easily audit everything. The PayMeBTC client is a self hosted webpage which connects your lnd node to your social media account indirectly through a websocket and software you control. To begin you can visit the previous link or you can download the attached file. When you view the paymebtc.html webpage please add your node information and follow the instructions. **Your connection string is: ' + host + '>' + msg.auth_code + '>' + msg.id + '**';
+    ws.send('{"action": "registered", "id": "'+ msg.id +'", "auth_code":"' + msg.auth_code + '", "connection_string":"' + host + '>>' + msg.auth_code + '>>' + msg.id + '", "staticBTC":"' + msg.staticBTC + '", "msg": "'+ response +'" }');
 }
 
 function newInvoice(msg, ws) {
-    if(!msg.data)
-        ws.send('{"action": "error", "msg":"No invoice data in new invoice response"}');
+    if(!msg.data && !msg.btcAddress)
+        ws.send('{"action": "error", "msg":"No invoice or BTC data in new invoice response"}');
     else
         IPCBroadcast(msg);
 }
@@ -86,7 +90,7 @@ async function parseIPC(data) {
     }
     
     switch(msg.action) {
-        case "request_invoice":
+        case "new_invoice":
             if(!msg.requestId || !msg.id){
                 if (process.env.debug)
                     console.log("Received IPC new invoice request missing requestId and id value: " + data);
@@ -95,18 +99,26 @@ async function parseIPC(data) {
         
             //check if user is live
             if(Object.keys(auths).includes(msg.id))
-                auths[msg.id].send(JSON.stringify({action: "new_invoice", requestId: msg.requestId, amount: msg.amount, memo: msg.memo}));
+                auths[msg.id].send(JSON.stringify(msg));
             else {
                 let res = await readUser(msg.id);
                 if (res && Object.keys(res).length > 0) {
                     //user is offline. Save this request for later or check for unexpired 0 value invoices or bolt12 invoices
-                    console.log(res);
                     let pendingRequests = JSON.parse(res.pendingRequests);
-                    if(pendingRequests.length < process.env.maxPendingRequests ? proccess.env.maxPendingRequests : 50)
+                    if(pendingRequests.length < process.env.maxPendingRequests ? process.env.maxPendingRequests : 50)
                         pendingRequests.pending.push(JSON.stringify(msg));
                     await updatePending(res.id, JSON.stringify(pendingRequests));
-                    msg.action = "user_offline";
-                    msg.msg = "The user " + msg.id + " is not currently online, but your invoice request will be saved and sent to them when they come back online."
+                    console.log(res);
+                    if(res.staticBTC != null) {
+                        //User offline but has setup static payments
+                        msg.action = "staticBTC";
+                        msg.staticBTC = res.staticBTC;
+                        msg.msg = 'The user is currently offline but has provided the static Bitcoin address ' + res.staticBTC + ' for payments. The request for a lightning invoice has been queued and will be delivered when they come online.';
+                    }
+                    else {
+                        msg.action = "user_offline";
+                        msg.msg = "The user " + msg.id + " is not currently online, but your invoice request will be saved and sent to them when they come back online.";
+                    }
                     this.ws.send(JSON.stringify(msg));
                 }
                 else {
@@ -166,6 +178,8 @@ async function processMessage(msg, ws){
         case "new_invoice":
             return newInvoice(msg, ws);
             break;
+        case "error":
+            return IPCBroadcast(msg);
     }
 
     //ws.send('{"action": "error", "msg": "Unknown or unauthorized request: ' + data + '"}');
