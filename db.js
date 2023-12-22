@@ -17,20 +17,15 @@ let setupQry = `
 `;
 await db.run(setupQry);
 
-let staticBTCUpgradeCheckQry = `
-    SELECT COUNT(*) AS noUpgradeNeeded FROM pragma_table_info('PayMeUsers') WHERE name='staticBTC'
+//0.0.2 update
+let staticBTCUpgradeQry = `
+    ALTER TABLE PayMeUsers ADD COLUMN staticBTC text
 `;
-
-let upgradeNeeded = await db.run(staticBTCUpgradeCheckQry);
-
-if(upgradeNeeded.noUpgradeNeeded == 0) {
-    let staticBTCUpgradeQry = `
-        ALTER TABLE PayMeUsers (
-            ADD staticBTC text
-        )
-    `;
-
+try {
     await db.run(staticBTCUpgradeQry);
+}
+catch(ex) {
+    console.log("v0.0.2 state check pass");
 }
 
         
