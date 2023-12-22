@@ -105,7 +105,7 @@ async function parseIPC(data) {
                 if (res && Object.keys(res).length > 0) {
                     //user is offline. Save this request for later or check for unexpired 0 value invoices or bolt12 invoices
                     let pendingRequests = JSON.parse(res.pendingRequests);
-                    if(pendingRequests.length < process.env.maxPendingRequests ? process.env.maxPendingRequests : 50)
+                    if(!msg.noPending && pendingRequests.length < process.env.maxPendingRequests ? process.env.maxPendingRequests : 50)
                         pendingRequests.pending.push(JSON.stringify(msg));
                     await updatePending(res.id, JSON.stringify(pendingRequests));
                     console.log(res);
@@ -198,7 +198,7 @@ wss.on('connection', async function connection(ws, req) {
     }
     catch(ex) {
         if (process.env.debug)
-            console.log("Invalid JSON in connection auth");
+            console.log("Invalid JSON in connection auth " + ws._socket.remoteAddress + " as user " + cs.id);
         return ws.close();
     }
     if(cs.message != undefined && cs.signature != undefined && cs.id != undefined && await isAuthed(cs)) {
@@ -228,7 +228,6 @@ wss.on('connection', async function connection(ws, req) {
     let user = await readUser(cs.id);
     let pendingRequests = JSON.parse(user.pendingRequests);
     pendingRequests.pending.forEach(pending => {
-        console.log(pending);
         parseIPC.bind({ws:{send: IPCBroadcast }})(pending);
     }) 
     clearPending(user.id);
