@@ -231,6 +231,17 @@ wss.on('connection', async function connection(ws, req) {
         parseIPC.bind({ws:{send: IPCBroadcast }})(pending);
     }) 
     clearPending(user.id);
+
+    async function ping() {
+        if(ws.readyState != 1)
+            console.log("Invalid socket state user ID " + cs.id)
+        ws.send(JSON.stringify({"action": "ping"}));
+        if (process.env.debug)
+            console.log("sent ping to user ID " + cs.id )
+        
+    }
+    let pingInterval = 3600000; //1h
+    let pingId = setInterval(ping, pingInterval);
     
 
     ws.on('message', function message(data) {
@@ -256,6 +267,7 @@ wss.on('connection', async function connection(ws, req) {
         auths[ws.id] = undefined;
         if (process.env.debug)
             console.log("Disconnection by " + ws._socket.remoteAddress + "/" + ws.id + ", Message: " + data);
+        clearInterval(pingId);
     });
 
     ws.on('error', function message(err) {
@@ -267,23 +279,30 @@ wss.on('connection', async function connection(ws, req) {
 
 
 
-
-
-
-
 IPCwss.on('connection', function connection(ws, req) {
     if(process.env.ipcWhitelist && !new Array(process.env.icpWhitelist).includes(req.socket.remoteAddress))
         ws.close();
     if (process.env.debug)
         console.log("New IPC connection from " + ws._socket.remoteAddress);
-
     ws.on('message', parseIPC.bind({ws: ws}));
+
+    async function ping() {
+        if(ws.readyState != 1)
+            console.log("Invalid ipc socket state " + ws._socket.remoteAddress)
+        ws.send(JSON.stringify({"action": "ping"}));
+        if (process.env.debug)
+            console.log("sent ipc ping to " + ws._socket.remoteAddress)
+        
+    }
+    let pingInterval = 3600000; //1h
+    let pingId = setInterval(ping, pingInterval);
 
 
 
     ws.on('close', function message(data) {
         if (process.env.debug)
             console.log('Closed IPC connection');
+        clearInterval(pingId);
     });
-    
+
 });
